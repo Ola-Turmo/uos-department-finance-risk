@@ -1,6 +1,14 @@
 import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
 import { ApprovalService } from "./approval-service.js";
 import { VarianceAnomalyService } from "./variance-anomaly-service.js";
+import {
+  createInitialConnectorHealthState,
+  updateConnectorHealthState,
+  computeDepartmentHealthStatus,
+  generateToolkitLimitations,
+  formatAllLimitations,
+  type ConnectorHealthState,
+} from "./connector-health.js";
 import type {
   CreateApprovalRouteParams,
   CreateApprovalRequestParams,
@@ -19,11 +27,17 @@ import type {
   MarkAnomalyFalsePositiveParams,
   AssignAnomalyFollowUpParams,
   UpdateAnomalyFollowUpStatusParams,
+  ConnectorHealthSummary,
+  SetConnectorHealthParams,
+  GetConnectorHealthParams,
 } from "./types.js";
 
 // Initialize services
 const approvalService = new ApprovalService();
 const varianceAnomalyService = new VarianceAnomalyService();
+
+// Connector health state (XAF-007)
+let connectorHealthState: ConnectorHealthState[] = createInitialConnectorHealthState();
 
 const plugin = definePlugin({
   async setup(ctx) {
@@ -33,15 +47,144 @@ const plugin = definePlugin({
       ctx.logger.info("Observed issue.created", { issueId });
     });
 
-    // Health check
+    // Health check (now includes connector health status - XAF-007)
     ctx.data.register("health", async () => {
-      return { status: "ok", checkedAt: new Date().toISOString() };
+      const limitations = generateToolkitLimitations(connectorHealthState);
+      const overallStatus = computeDepartmentHealthStatus(connectorHealthState);
+      return {
+        status: overallStatus,
+        checkedAt: new Date().toISOString(),
+        hasLimitations: limitations.length > 0,
+        limitations: limitations,
+      };
+    });
+
+    // Connector health data (XAF-007)
+    ctx.data.register("connectorHealth", async (params) => {
+      const p = params as unknown as GetConnectorHealthParams;
+      if (p?.toolkitId) {
+        const state = connectorHealthState.find((s) => s.toolkitId === p.toolkitId);
+        if (!state) {
+          return { error: `Connector '${p.toolkitId}' not found` };
+        }
+        const limitations = state.status !== "ok"
+          ? generateToolkitLimitations([state])
+          : [];
+        return { connector: state, limitations };
+      }
+      const limitations = generateToolkitLimitations(connectorHealthState);
+      const overallStatus = computeDepartmentHealthStatus(connectorHealthState);
+      const summary: ConnectorHealthSummary = {
+        overallStatus,
+        checkedAt: new Date().toISOString(),
+        connectors: connectorHealthState,
+        limitations,
+        hasLimitations: limitations.length > 0,
+      };
+      return summary;
     });
 
     // Ping action for testing
     ctx.actions.register("ping", async () => {
       ctx.logger.info("Ping action invoked");
       return { pong: true, at: new Date().toISOString() };
+    });
+
+    // ============================================
+    // Connector Health Actions (XAF-007)
+    // ============================================
+
+    /**
+     * Set connector health status (for simulation/testing)
+     * XAF-007: Simulate connector degradation to verify limitation messaging
+     */
+    ctx.actions.register("connector.setHealth", async (params) => {
+      const p = params as unknown as SetConnectorHealthParams;
+      ctx.logger.info("Setting connector health", { toolkitId: p.toolkitId, status: p.status });
+      connectorHealthState = updateConnectorHealthState(
+        connectorHealthState,
+        p.toolkitId,
+        p.status,
+        p.error
+      );
+      const limitations = generateToolkitLimitations(connectorHealthState);
+      const overallStatus = computeDepartmentHealthStatus(connectorHealthState);
+      return {
+        success: true,
+        toolkitId: p.toolkitId,
+        status: p.status,
+        overallStatus,
+        limitations,
+        formattedLimitations: limitations.length > 0 ? formatAllLimitations(limitations) : undefined,
+      };
+    });
+
+    /**
+     * Get connector health summary
+     * XAF-007
+     */
+    ctx.actions.register("connector.getHealth", async () => {
+      const limitations = generateToolkitLimitations(connectorHealthState);
+      const overallStatus = computeDepartmentHealthStatus(connectorHealthState);
+      return {
+        overallStatus,
+        checkedAt: new Date().toISOString(),
+        connectors: connectorHealthState,
+        limitations,
+        hasLimitations: limitations.length > 0,
+      };
+    });
+
+    /**
+     * Simulate connector degradation for testing
+     * XAF-007
+     */
+    ctx.actions.register("connector.simulateDegradation", async (params) => {
+      const p = params as unknown as { toolkitId: string; severity?: "degraded" | "error" };
+      const status = p.severity ?? "degraded";
+      ctx.logger.info("Simulating connector degradation", { toolkitId: p.toolkitId, status });
+      connectorHealthState = updateConnectorHealthState(
+        connectorHealthState,
+        p.toolkitId,
+        status,
+        status === "error"
+          ? "Simulated: Connector authentication failed"
+          : "Simulated: Connector responding slowly"
+      );
+      const limitations = generateToolkitLimitations(connectorHealthState);
+      const overallStatus = computeDepartmentHealthStatus(connectorHealthState);
+      return {
+        success: true,
+        toolkitId: p.toolkitId,
+        status,
+        overallStatus,
+        limitations,
+        formattedLimitations: limitations.length > 0 ? formatAllLimitations(limitations) : undefined,
+      };
+    });
+
+    /**
+     * Restore connector to healthy state
+     * XAF-007
+     */
+    ctx.actions.register("connector.restore", async (params) => {
+      const p = params as unknown as { toolkitId: string };
+      ctx.logger.info("Restoring connector health", { toolkitId: p.toolkitId });
+      connectorHealthState = updateConnectorHealthState(
+        connectorHealthState,
+        p.toolkitId,
+        "ok"
+      );
+      const limitations = generateToolkitLimitations(connectorHealthState);
+      const overallStatus = computeDepartmentHealthStatus(connectorHealthState);
+      return {
+        success: true,
+        toolkitId: p.toolkitId,
+        status: "ok",
+        overallStatus,
+        limitations,
+        hasLimitations: limitations.length > 0,
+      };
     });
 
     // ============================================
