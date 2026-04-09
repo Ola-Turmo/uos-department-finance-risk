@@ -1,0 +1,72 @@
+[
+  {
+    "roleKey": "finance",
+    "title": "Chief Financial Officer",
+    "roleType": "executive",
+    "layer": "executive",
+    "moduleScoped": false
+  },
+  {
+    "roleKey": "risk",
+    "title": "General Counsel / Chief Risk & Compliance Officer",
+    "roleType": "executive",
+    "layer": "executive",
+    "moduleScoped": false
+  },
+  {
+    "roleKey": "finance-controllership-lead",
+    "title": "Controllership Lead",
+    "roleType": "manager",
+    "layer": "base",
+    "moduleScoped": false
+  },
+  {
+    "roleKey": "finance-fpa-lead",
+    "title": "FP&A Lead",
+    "roleType": "manager",
+    "layer": "base",
+    "moduleScoped": false
+  },
+  {
+    "roleKey": "risk-compliance-lead",
+    "title": "Compliance Lead",
+    "roleType": "manager",
+    "layer": "base",
+    "moduleScoped": false
+  },
+  {
+    "roleKey": "risk-privacy-lead",
+    "title": "Privacy Lead",
+    "roleType": "manager",
+    "layer": "base",
+    "moduleScoped": false
+  },
+  {
+    "roleKey": "finance-close-specialist",
+    "title": "Month-End Close Specialist",
+    "roleType": "specialist",
+    "layer": "base",
+    "moduleScoped": false
+  },
+  {
+    "roleKey": "risk-policy-specialist",
+    "title": "Policy Specialist",
+    "roleType": "specialist",
+    "layer": "base",
+    "moduleScoped": false
+  },
+  {
+    "roleKey": "finance-reviewer",
+    "title": "Finance Reviewer",
+    "roleType": "reviewer",
+    "layer": "base",
+    "moduleScoped": false
+  },
+  {
+    "roleKey": "risk-reviewer",
+    "title": "Risk Reviewer",
+    "roleType": "reviewer",
+    "layer": "base",
+    "moduleScoped": false
+  }
+]

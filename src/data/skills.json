@@ -1,0 +1,29 @@
+{
+  "bundleIds": [
+    "uos-core",
+    "uos-finance-risk",
+    "uos-people-risk"
+  ],
+  "externalSkills": [
+    {
+      "id": "uos-external-pricing-strategy",
+      "sourceRelativePath": "vendor/external-skills/coreyhaines31/marketingskills/pricing-strategy"
+    },
+    {
+      "id": "uos-external-security-review",
+      "sourceRelativePath": "vendor/external-skills/ola-turmo/unified-skills-catalog/security-review"
+    },
+    {
+      "id": "kurs-ing-support-guarantee-refunds",
+      "sourceRelativePath": "vendor/external-skills/kurs-ing/support-guarantee-refunds"
+    },
+    {
+      "id": "kurs-ing-policy-surface-review",
+      "sourceRelativePath": "vendor/external-skills/kurs-ing/policy-surface-review"
+    },
+    {
+      "id": "uos-external-running-decisions",
+      "sourceRelativePath": "vendor/external-skills/ola-turmo/unified-skills-catalog/running-decision-processes"
+    }
+  ]
+}

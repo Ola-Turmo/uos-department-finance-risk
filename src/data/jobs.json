@@ -1,0 +1,18 @@
+[
+  {
+    "jobKey": "finance-monthly-review",
+    "name": "Finance Monthly Review",
+    "cadence": "monthly",
+    "ownerRoleKey": "finance-fpa-lead",
+    "projectKey": "strategy-to-budget-project",
+    "goalKey": "strategy-to-budget-goal"
+  },
+  {
+    "jobKey": "risk-weekly-exception-review",
+    "name": "Risk Weekly Exception Review",
+    "cadence": "weekly",
+    "ownerRoleKey": "risk-compliance-lead",
+    "projectKey": "incident-to-resolution-project",
+    "goalKey": "incident-to-resolution-goal"
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "departmentId": "finance-risk",
+  "displayName": "Finance & Risk Department",
+  "parentFunctionId": "finance-risk",
+  "parentExecutiveRole": "finance+risk",
+  "moduleId": null,
+  "summary": "Budgeting, close, policy, privacy, approvals, and exception review.",
+  "requiredSkillBundles": [
+    "uos-core",
+    "uos-finance-risk",
+    "uos-people-risk"
+  ],
+  "missionRefs": [
+    "strategy-to-budget",
+    "incident-to-resolution"
+  ]
+}

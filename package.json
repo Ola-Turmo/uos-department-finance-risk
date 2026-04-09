@@ -1,0 +1,46 @@
+{
+  "name": "@uos/department-finance-risk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Department overlay for finance and risk roles, jobs, skills, and connector policy.",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "test": "node ./node_modules/vitest/vitest.mjs run",
+    "check": "npm run build && npm test",
+    "plugin:build": "node ./esbuild.config.mjs",
+    "plugin:build:rollup": "rollup -c",
+    "plugin:dev": "node ./esbuild.config.mjs --watch",
+    "plugin:dev:ui": "paperclip-plugin-dev-server --root . --ui-dir dist/ui --port 4177",
+    "plugin:test": "vitest run --config ./vitest.plugin.config.ts",
+    "plugin:typecheck": "tsc --noEmit -p ./tsconfig.plugin.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4",
+    "@paperclipai/plugin-sdk": "^1.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-typescript": "^12.1.2",
+    "@types/react": "^19.0.8",
+    "esbuild": "^0.27.3",
+    "rollup": "^4.38.0",
+    "tslib": "^2.8.1"
+  },
+  "paperclipPlugin": {
+    "manifest": "./dist/manifest.js",
+    "worker": "./dist/worker.js",
+    "ui": "./dist/ui/"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}

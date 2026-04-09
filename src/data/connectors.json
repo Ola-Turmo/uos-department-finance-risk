@@ -1,0 +1,26 @@
+{
+  "requiredToolkits": [
+    "googlesheets",
+    "gmail",
+    "stripe",
+    "slack"
+  ],
+  "roleToolkits": [
+    {
+      "roleKey": "finance",
+      "toolkits": ["googlesheets", "slack"]
+    },
+    {
+      "roleKey": "finance-fpa-lead",
+      "toolkits": ["googlesheets", "stripe", "gmail"]
+    },
+    {
+      "roleKey": "finance-reviewer",
+      "toolkits": ["googlesheets", "stripe"]
+    },
+    {
+      "roleKey": "risk-compliance-lead",
+      "toolkits": ["slack", "gmail"]
+    }
+  ]
+}
