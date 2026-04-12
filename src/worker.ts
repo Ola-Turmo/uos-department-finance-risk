@@ -32,6 +32,7 @@ import {
   exponentialSmoothingForecast,
 } from "./variance/statistical-anomaly.js";
 import type {
+  ApprovalRequest,
   CreateApprovalRouteParams,
   CreateApprovalRequestParams,
   SubmitApprovalDecisionParams,
@@ -395,6 +396,132 @@ const plugin = definePlugin({
       const p = params as unknown as { requestId: string };
       const report = approvalService.generateRequestReport(p.requestId);
       return { report: report ?? null };
+    });
+
+    // ============================================
+    // Approval Intelligence Actions (VAL-DEPT-FR-001)
+    // ============================================
+
+    // Initialize approval intelligence
+    const approvalIntelligence = new ApprovalIntelligence();
+
+    /**
+     * Track an approval request for intelligence
+     * VAL-DEPT-FR-001
+     */
+    ctx.actions.register("approval.intelligence.track", async (params) => {
+      const p = params as unknown as { request: ApprovalRequest };
+      approvalIntelligence.trackRequest(p.request);
+      return { success: true };
+    });
+
+    /**
+     * Record an approval decision for intelligence
+     * VAL-DEPT-FR-001
+     */
+    ctx.actions.register("approval.intelligence.recordDecision", async (params) => {
+      const p = params as unknown as {
+        requestId: string;
+        approverRoleKey: string;
+        decision: "approved" | "rejected" | "exception" | "delegated";
+        decidedAt: string;
+        durationHours?: number;
+      };
+      approvalIntelligence.recordApprovalDecision(p);
+      return { success: true };
+    });
+
+    /**
+     * Get approval recommendation for a request
+     * VAL-DEPT-FR-001
+     */
+    ctx.actions.register("approval.intelligence.getRecommendation", async (params) => {
+      const p = params as unknown as { requestId: string };
+      const recommendation = approvalIntelligence.getRecommendation(p.requestId);
+      return { recommendation };
+    });
+
+    /**
+     * Get risk context for a request
+     * VAL-DEPT-FR-001
+     */
+    ctx.actions.register("approval.intelligence.getRiskContext", async (params) => {
+      const p = params as unknown as { requestId: string };
+      const riskContext = approvalIntelligence.getRiskContext(p.requestId);
+      return { riskContext };
+    });
+
+    /**
+     * Suggest delegation for an overloaded approver
+     * VAL-DEPT-FR-001
+     */
+    ctx.actions.register("approval.intelligence.suggestDelegation", async (params) => {
+      const p = params as unknown as {
+        approverRoleKey: string;
+        slaDeadlineHours?: number;
+        isBusinessCritical?: boolean;
+      };
+      const suggestion = approvalIntelligence.suggestOptimalDelegation(p.approverRoleKey, {
+        slaDeadlineHours: p.slaDeadlineHours,
+        isBusinessCritical: p.isBusinessCritical,
+      });
+      return { suggestion };
+    });
+
+    /**
+     * Predict bottlenecks in the approval pipeline
+     * VAL-DEPT-FR-001
+     */
+    ctx.actions.register("approval.intelligence.predictBottlenecks", async () => {
+      const predictions = approvalIntelligence.predictBottleneck();
+      return { predictions };
+    });
+
+    /**
+     * Get pipeline analytics
+     * VAL-DEPT-FR-001
+     */
+    ctx.actions.register("approval.intelligence.getPipelineAnalytics", async () => {
+      const analytics = approvalIntelligence.getPipelineAnalytics();
+      return { analytics };
+    });
+
+    /**
+     * Get approver capacity
+     * VAL-DEPT-FR-001
+     */
+    ctx.actions.register("approval.intelligence.getApproverCapacity", async (params) => {
+      const p = params as unknown as { approverRoleKey: string };
+      const capacity = approvalIntelligence.getApproverCapacity(p.approverRoleKey);
+      return { capacity };
+    });
+
+    /**
+     * Update approver capacity
+     * VAL-DEPT-FR-001
+     */
+    ctx.actions.register("approval.intelligence.updateApproverCapacity", async (params) => {
+      const p = params as unknown as {
+        approverRoleKey: string;
+        pendingCount?: number;
+        avgApprovalTimeHours?: number;
+        utilizationPercent?: number;
+      };
+      approvalIntelligence.updateApproverCapacity(p.approverRoleKey, {
+        pendingCount: p.pendingCount,
+        avgApprovalTimeHours: p.avgApprovalTimeHours,
+        utilizationPercent: p.utilizationPercent,
+      });
+      return { success: true };
+    });
+
+    /**
+     * Get approval intelligence state
+     * VAL-DEPT-FR-001
+     */
+    ctx.actions.register("approval.intelligence.getState", async () => {
+      const state = approvalIntelligence.getState();
+      return { state };
     });
 
     // ============================================
