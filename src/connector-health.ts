@@ -9,6 +9,8 @@
  */
 
 import { connectorsConfig } from "./data/connectors-config.js";
+import { checkToolkitHealth } from "./zapier-health.js";
+
 
 export type ConnectorHealthStatus = "ok" | "degraded" | "error" | "unknown";
 
@@ -256,60 +258,49 @@ export async function performRuntimeHealthCheck(
   const checkResults: RuntimeHealthCheckResult[] = [];
   let hasChecked = false;
 
-  const updatedStates = currentState.map((state) => {
-    if (state.status === "error" || state.status === "degraded") {
+  const updatedStates: ConnectorHealthState[] = [];
+  for (const state of currentState) {
+    // Real Zapier-based health check
+    const healthResult = await checkToolkitHealth(state.toolkitId);
+
+    if (!healthResult.checked) {
+      // No Zapier connection for this toolkit — preserve existing state
       checkResults.push({
         toolkitId: state.toolkitId,
         status: state.status,
-        checkedAt: state.lastChecked,
+        checkedAt: now,
         error: state.error,
-        wasChecked: true,
+        wasChecked: false,
       });
-      return state;
+      hasChecked = true;
+      updatedStates.push(state);
+      continue;
     }
 
-    const simulatedCheckSucceeds = Math.random() > 0.1;
     hasChecked = true;
-    
-    if (simulatedCheckSucceeds) {
-      checkResults.push({
-        toolkitId: state.toolkitId,
-        status: "ok",
-        checkedAt: now,
-        wasChecked: true,
-      });
-      
-      return {
-        ...state,
-        status: "ok" as ConnectorHealthStatus,
-        lastChecked: now,
-        error: undefined,
-      };
-    } else {
-      const failureTypes: Array<{ status: ConnectorHealthStatus; error: string }> = [
-        { status: "error", error: "Connection timeout: Connector API did not respond" },
-        { status: "degraded", error: "Slow response: Connector API responding above normal latency" },
-        { status: "error", error: "Authentication failed: Invalid or expired credentials" },
-      ];
-      const failure = failureTypes[Math.floor(Math.random() * failureTypes.length)];
-      
-      checkResults.push({
-        toolkitId: state.toolkitId,
-        status: failure.status,
-        checkedAt: now,
-        error: failure.error,
-        wasChecked: true,
-      });
-      
-      return {
-        ...state,
-        status: failure.status as ConnectorHealthStatus,
-        lastChecked: now,
-        error: failure.error,
-        limitationMessage: failure.status !== "ok" ? DEFAULT_LIMITATION_MESSAGES[state.toolkitId] : undefined,
-      };
+    const checkResult: RuntimeHealthCheckResult = {
+      toolkitId: state.toolkitId,
+      status: healthResult.status as ConnectorHealthStatus,
+      checkedAt: now,
+      error: healthResult.error,
+      wasChecked: true,
+    };
+    checkResults.push(checkResult);
+
+    if (healthResult.status === "ok") {
+      updatedStates.push({ ...state, status: "ok" as ConnectorHealthStatus, lastChecked: now, error: undefined });
+      continue;
     }
-  });
+
+    updatedStates.push({
+      ...state,
+      status: healthResult.status as ConnectorHealthStatus,
+      lastChecked: now,
+      error: healthResult.error,
+      limitationMessage: DEFAULT_LIMITATION_MESSAGES[state.toolkitId],
+    });
+  }
+;
 
   const overallStatus = computeDepartmentHealthStatus(updatedStates);
 
