@@ -10,7 +10,7 @@ on:
   pull_request:
 
 jobs:
-  department:
+  plugin-ci:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,12 +20,16 @@ jobs:
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8
         with:
           node-version: 24
+          cache: npm
 
-      - name: Install
+      - name: Install dependencies
         run: npm install --no-fund --no-audit
 
-      - name: Build
-        run: npm run build
+      - name: TypeScript check
+        run: npm run plugin:typecheck
 
-      - name: Test
-        run: npm test
+      - name: Build plugin
+        run: npm run plugin:build
+
+      - name: Run plugin tests
+        run: npm run plugin:test
