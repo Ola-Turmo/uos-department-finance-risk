@@ -28,6 +28,8 @@ import {
   detectSeasonalAnomaly,
   calculateVolatilityAdjustedThreshold,
   detectMovingAverageCrossover,
+  calculateRollingMean,
+  calculateRollingStdDev,
   simpleMovingAverageForecast,
   exponentialSmoothingForecast,
 } from "./variance/statistical-anomaly.js";
@@ -59,6 +61,9 @@ import type {
   GetControlHealthParams,
   GetControlExceptionsParams,
   GetControlEffectivenessParams,
+  DetectStatisticalAnomalyParams,
+  AnalyzeTimeSeriesParams,
+  TimeSeriesPoint,
 } from "./types.js";
 
 // Initialize services
@@ -734,6 +739,161 @@ const plugin = definePlugin({
     ctx.actions.register("anomaly.getSummary", async () => {
       const summary = varianceAnomalyService.generateAnomalySummary();
       return { summary };
+    });
+
+    // ============================================
+    // Statistical Anomaly Detection Actions (VAL-DEPT-FR-002)
+    // Phase 1: Anomaly Engine - Time-series anomaly detection with pure statistics
+    // ============================================
+
+    /**
+     * Detect anomalies in time-series data using statistical methods
+     * VAL-DEPT-FR-002 Phase 1: Anomaly Engine
+     */
+    ctx.actions.register("statisticalAnomaly.detect", async (params) => {
+      const p = params as unknown as DetectStatisticalAnomalyParams;
+      ctx.logger.info("Detecting statistical anomalies", { title: p.title, method: p.method });
+
+      const dataPoints = p.dataPoints.map(d => d.value);
+      const timeSeriesData = p.dataPoints;
+
+      const engine = new StatisticalAnomalyEngine();
+      let result;
+
+      if (p.method === "ensemble") {
+        result = engine.detectWithEnsemble(
+          timeSeriesData,
+          ["zscore", "iqr"],
+          { threshold: p.threshold, multiplier: p.multiplier }
+        );
+      } else {
+        result = engine.detect(p.method, timeSeriesData, {
+          threshold: p.threshold,
+          multiplier: p.multiplier,
+        });
+      }
+
+      return {
+        anomalyResult: {
+          id: `stat-anomaly-${Date.now()}`,
+          detectedAt: new Date().toISOString(),
+          method: result.method,
+          anomalies: result.anomalies.map(a => ({
+            index: a.index,
+            value: typeof a.value === "number" ? a.value : a.value.value,
+            timestamp: typeof a.value === "object" ? a.value.timestamp : undefined,
+            severityScore: a.severityScore,
+            zScore: a.zScore,
+            deviationFromExpected: a.deviationFromExpected,
+            methods: "methods" in a ? a.methods : undefined,
+          })),
+          statistics: result.statistics,
+          explanation: result.explanation ?? `Statistical anomaly detection using ${result.method} method`,
+          insufficientData: result.insufficientData ?? false,
+          timeSeriesData: p.dataPoints,
+        },
+      };
+    });
+
+    /**
+     * Analyze time-series data with rolling statistics
+     * VAL-DEPT-FR-002 Phase 1: Anomaly Engine
+     */
+    ctx.actions.register("statisticalAnomaly.analyzeTimeSeries", async (params) => {
+      const p = params as unknown as AnalyzeTimeSeriesParams;
+      ctx.logger.info("Analyzing time series", { pointCount: p.dataPoints.length });
+
+      const dataPoints = p.dataPoints.map(d => d.value);
+      const windowSize = p.windowSize ?? 3;
+
+      const rollingMean = calculateRollingMean(dataPoints, windowSize);
+      const rollingStdDev = calculateRollingStdDev(dataPoints, windowSize);
+
+      const result: any = {
+        rollingMean,
+        rollingStdDev,
+        windowSize,
+        pointCount: dataPoints.length,
+      };
+
+      // If crossover detection is requested
+      if (p.detectCrossovers) {
+        const shortWindow = p.shortWindow ?? Math.max(2, Math.floor(windowSize / 2));
+        const longWindow = p.longWindow ?? windowSize;
+        const crossoverResult = detectMovingAverageCrossover(dataPoints, shortWindow, longWindow);
+        result.crossoverSignals = crossoverResult.crossoverIndices.map(idx => ({
+          index: idx,
+          type: crossoverResult.crossoverTypes.get(idx),
+          shortMA: crossoverResult.shortMA[idx],
+          longMA: crossoverResult.longMA[idx],
+        }));
+      }
+
+      return result;
+    });
+
+    /**
+     * Calculate volatility-adjusted thresholds for anomaly detection
+     * VAL-DEPT-FR-002 Phase 1: Anomaly Engine
+     */
+    ctx.actions.register("statisticalAnomaly.getVolatilityThreshold", async (params) => {
+      const p = params as unknown as { dataPoints: Array<{ value: number }>; numStdDevs?: number };
+      const dataPoints = p.dataPoints.map(d => d.value);
+      const threshold = calculateVolatilityAdjustedThreshold(dataPoints, p.numStdDevs ?? 2);
+      return { threshold };
+    });
+
+    /**
+     * Detect anomalies using seasonal patterns
+     * VAL-DEPT-FR-002 Phase 1: Anomaly Engine
+     */
+    ctx.actions.register("statisticalAnomaly.detectSeasonal", async (params) => {
+      const p = params as unknown as {
+        dataPoints: TimeSeriesPoint[];
+        period: number;
+        threshold?: number;
+      };
+      ctx.logger.info("Detecting seasonal anomalies", { period: p.period });
+
+      const result = detectSeasonalAnomaly(p.dataPoints, {
+        period: p.period,
+        threshold: p.threshold ?? 2.5,
+        minPeriodDataPoints: p.period,
+      });
+
+      return {
+        anomalyIndices: result.anomalyIndices,
+        seasonalProfiles: Object.fromEntries(result.seasonalProfiles),
+        insufficientData: result.insufficientData ?? false,
+      };
+    });
+
+    /**
+     * Get forecast using simple moving average
+     * VAL-DEPT-FR-002 Phase 1: Anomaly Engine
+     */
+    ctx.actions.register("statisticalAnomaly.forecastSMA", async (params) => {
+      const p = params as unknown as { dataPoints: Array<{ value: number }>; periods?: number };
+      const dataPoints = p.dataPoints.map(d => d.value);
+      const forecast = simpleMovingAverageForecast(dataPoints, p.periods ?? 1);
+      return { forecast, periods: p.periods ?? 1, method: "simpleMovingAverage" };
+    });
+
+    /**
+     * Get forecast using exponential smoothing
+     * VAL-DEPT-FR-002 Phase 1: Anomaly Engine
+     */
+    ctx.actions.register("statisticalAnomaly.forecastEMA", async (params) => {
+      const p = params as unknown as { dataPoints: Array<{ value: number }>; alpha?: number; periods?: number };
+      const dataPoints = p.dataPoints.map(d => d.value);
+      const result = exponentialSmoothingForecast(dataPoints, p.alpha ?? 0.3, p.periods ?? 1);
+      return {
+        forecast: result.forecast,
+        smoothedValues: result.smoothedValues,
+        periods: p.periods ?? 1,
+        method: "exponentialSmoothing",
+        alpha: p.alpha ?? 0.3,
+      };
     });
 
     // ============================================

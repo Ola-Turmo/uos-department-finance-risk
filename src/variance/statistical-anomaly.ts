@@ -77,7 +77,7 @@ export interface StatisticsSummary {
 }
 
 export interface EnsembleResult {
-  anomalies: AnomalyMarker[];
+  anomalies: AnomalyMarker<number>[];
   method: string;
   ensembleVotes: VoteRecord[];
   consensusAnomalies: number[];
@@ -526,9 +526,9 @@ export class StatisticalAnomalyEngine {
     params?: DetectionParams
   ): AnomalyDetectionResult<T> {
     // Extract values if time series data
-    const values: number[] = this.isTimeSeries(data) 
-      ? (data as TimeSeriesDataPoint[]).map(d => d.value)
-      : data as number[];
+    const values: number[] = data.map(d => 
+      typeof d === 'number' ? d : (d as TimeSeriesDataPoint).value
+    );
 
     const insufficientData = values.length < 3;
     
@@ -618,9 +618,9 @@ export class StatisticalAnomalyEngine {
     methods: DetectionMethod[],
     params?: { threshold?: number; multiplier?: number }
   ): EnsembleResult {
-    const values: number[] = this.isTimeSeries(data)
-      ? (data as TimeSeriesDataPoint[]).map(d => d.value)
-      : data as number[];
+    const values: number[] = data.map(d => 
+      typeof d === 'number' ? d : (d as TimeSeriesDataPoint).value
+    );
 
     if (values.length < 3) {
       return {
@@ -681,7 +681,7 @@ export class StatisticalAnomalyEngine {
     });
 
     return {
-      anomalies,
+      anomalies: anomalies as AnomalyMarker<number>[],
       method: "ensemble",
       ensembleVotes,
       consensusAnomalies,
