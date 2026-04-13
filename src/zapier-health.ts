@@ -17,9 +17,64 @@
  */
 
 import { spawn } from "child_process";
+import { statSync } from "fs";
 import type { ConnectorHealthStatus } from "./connector-health.js";
 
-// ── Connection registry ───────────────────────────────────────────────────
+// ── Binary resolution ─────────────────────────────────────────────────────
+const ZAPIER_BIN = (() => {
+  try {
+    // Try system path first (fastest — no npx overhead)
+    const sysPath = "/usr/bin/zapier-sdk";
+    statSync(sysPath);
+    return sysPath;
+  } catch {
+    // Fall back to npx resolution
+    try {
+      const out = require("child_process")
+        .execSync("npx --yes zapier-sdk 2>/dev/null || which zapier-sdk", { timeout: 10_000 })
+        .toString()
+        .trim()
+        .split("\n")
+        .at(-1);
+      return out || "zapier-sdk";
+    } catch {
+      return "zapier-sdk";
+    }
+  }
+})();
+
+// ── Result cache ──────────────────────────────────────────────────────────
+interface CachedResult {
+ result: ZapierHealthResult;
+ expiresAt: number; // Unix ms
+}
+
+const healthCache = new Map<string, CachedResult>();
+const CACHE_TTL_MS = 60_000; // 60 seconds
+
+function getCached(toolkitId: string): ZapierHealthResult | null {
+  const cached = healthCache.get(toolkitId);
+  if (!cached) return null;
+  if (Date.now() > cached.expiresAt) {
+    healthCache.delete(toolkitId);
+    return null;
+  }
+  return cached.result;
+}
+
+function setCached(toolkitId: string, result: ZapierHealthResult): void {
+  // Evict if cache is too large (max 50 entries)
+  if (healthCache.size >= 50) {
+    // Remove oldest 10
+    const oldest = [...healthCache.entries()]
+      .sort((a, b) => a[1].expiresAt - b[1].expiresAt)
+      .slice(0, 10);
+    oldest.forEach(([k]) => healthCache.delete(k));
+  }
+  healthCache.set(toolkitId, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+// ── Connection registry ────────────────────────────────────────────────────
 const ZAPIER_CONNECTIONS: Record<string, { app: string; label: string }> = {
   "63153551": { app: "GoogleMailV2CLIAPI",  label: "Gmail" },
   "63153517": { app: "GoogleMailV2CLIAPI",  label: "Gmail (ola.turmo)" },
@@ -79,18 +134,24 @@ function runZapierAction(
   params: string
 ): Promise<{ ok: boolean; error?: string }> {
   return new Promise((resolve) => {
-    const proc = spawn("npx", [
-      "zapier-sdk", "run-action",
+    const proc = spawn(ZAPIER_BIN, [
+      "run-action",
       app, actionType, action,
       "--connection-id", connectionId,
       "--inputs", params,
       "--json",
-    ], { timeout: 12_000 });
+    ]);
 
     let stdout = "";
+    const timer = setTimeout(() => {
+      try { proc.kill(); } catch { /* noop */ }
+      resolve({ ok: false, error: "Timeout after 12s" });
+    }, 12_000);
+
     proc.stdout.on("data", (d) => { stdout += d.toString(); });
 
     proc.on("close", () => {
+      clearTimeout(timer);
       try {
         const j = JSON.parse(stdout);
         if (j.errors && j.errors.length > 0) {
@@ -104,17 +165,13 @@ function runZapierAction(
     });
 
     proc.on("error", (err) => {
+      clearTimeout(timer);
       resolve({ ok: false, error: err.message });
     });
-
-    setTimeout(() => {
-      try { proc.kill(); } catch { /* noop */ }
-      resolve({ ok: false, error: "Timeout after 12s" });
-    }, 12_000);
   });
 }
 
-// ── Public API ────────────────────────────────────────────────────────────
+// ── Public API ─────────────────────────────────────────────────────────────
 
 export type ZapierHealthResult =
   | { checked: true; status: ConnectorHealthStatus; error?: string }
@@ -124,48 +181,53 @@ export type ZapierHealthResult =
  * Check the health of a single toolkit via Zapier.
  * Returns { checked: false } if no Zapier connection exists for this toolkit,
  * in which case the caller should preserve the existing state.
+ *
+ * Results are cached for 60 seconds to avoid redundant Zapier spawns.
  */
 export async function checkToolkitHealth(
   toolkitId: string
 ): Promise<ZapierHealthResult> {
-  const zapier = TOOLKIT_ZAPIER_MAP[toolkitId];
-  if (!zapier) {
+  // Fast path: no Zapier connection for this toolkit
+  if (!TOOLKIT_ZAPIER_MAP[toolkitId]) {
     return { checked: false, reason: "no_zapier_connection" };
   }
 
-  const conn = ZAPIER_CONNECTIONS[zapier.connectionId];
-  if (!conn) {
-    return { checked: false, reason: "no_zapier_connection" };
-  }
+  // Cache hit
+  const cached = getCached(toolkitId);
+  if (cached) return cached;
+
+  const config = TOOLKIT_ZAPIER_MAP[toolkitId]!;
+  const conn = ZAPIER_CONNECTIONS[config.connectionId];
 
   const result = await runZapierAction(
-    conn.app, zapier.actionType, zapier.action,
-    zapier.connectionId, zapier.params
+    conn.app,
+    config.actionType,
+    config.action,
+    config.connectionId,
+    config.params
   );
 
-  if (result.ok) {
-    return { checked: true, status: "ok" };
+  let healthResult: ZapierHealthResult;
+  if (!result.ok) {
+    const errMsg = result.error ?? "unknown";
+    // Auth/credential errors = permanent "error" status
+    const isAuthError = /unauthorized|invalid.*token|authentication|credentials|refresh/i.test(errMsg);
+    healthResult = {
+      checked: true,
+      status: isAuthError ? "error" : "degraded",
+      error: errMsg,
+    };
+  } else {
+    healthResult = { checked: true, status: "ok" };
   }
 
-  const msg = result.error ?? "Unknown error";
-  const isAuthFailure = /auth|credential|token|expired|invalid|forbidden|unauthorized/i.test(msg);
-  return {
-    checked: true,
-    status: isAuthFailure ? "error" : "degraded",
-    error: msg,
-  };
+  setCached(toolkitId, healthResult);
+  return healthResult;
 }
 
 /**
- * Check all listed toolkits in parallel.
+ * Clear the health cache (useful for forced re-checks).
  */
-export async function checkAllToolkits(
-  toolkitIds: string[]
-): Promise<Array<{ toolkitId: string; result: ZapierHealthResult }>> {
-  return Promise.all(
-    toolkitIds.map(async (toolkitId) => ({
-      toolkitId,
-      result: await checkToolkitHealth(toolkitId),
-    }))
-  );
+export function clearHealthCache(): void {
+  healthCache.clear();
 }
