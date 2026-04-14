@@ -89,7 +89,9 @@ Star schema with full dimensional context on every financial event:
 
 ### CFO KPI Dashboard
 
-![KPI Dashboard](docs/images/04-kpi-dashboard.jpg)
+![KPI Dashboard — Profitability & Efficiency](docs/images/04-kpi-dashboard.jpg)
+
+![KPI Dashboard — Liquidity, Cash & Collections](docs/images/04-kpi-dashboard-2.jpg)
 
 Live metrics pulled from the Financial Data Warehouse:
 
