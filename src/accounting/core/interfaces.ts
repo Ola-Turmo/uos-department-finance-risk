@@ -4,7 +4,7 @@
  * Swap for: SqliteRepository, PostgresRepository, MySqlRepository, etc.
  */
 
-export interface Repository<T extends { id: string }> {
+export interface Repository<T extends object> {
   findById(id: string): Promise<T | null>;
   findAll(filters?: Partial<T>): Promise<T[]>;
   save(entity: T): Promise<T>;
@@ -16,7 +16,7 @@ export interface UnitOfWork {
   start(): Promise<void>;
   commit(): Promise<void>;
   rollback(): Promise<void>;
-  getRepository<T extends { id: string }>(name: string): Repository<T>;
+  getRepository<T extends object>(name: string): Repository<T>;
 }
 
 export interface DbConfig {
@@ -31,7 +31,7 @@ export class RepositoryFactory {
 
   constructor(private dbConfig: DbConfig) {}
 
-  getRepository<T extends { id: string }>(name: string): Repository<T> {
+  getRepository<T extends object>(name: string): Repository<T> {
     if (this.unitOfWork) return this.unitOfWork.getRepository<T>(name);
     if (!this.repos.has(name)) {
       this.repos.set(name, new InMemoryRepository<T>());
@@ -44,8 +44,8 @@ export class RepositoryFactory {
   }
 }
 
-export class InMemoryRepository<T extends { id: string }> implements Repository<T> {
-  private storage = new Map<string, T>();
+export class InMemoryRepository<T extends object> implements Repository<T> {
+  protected storage = new Map<string, T>();
 
   async findById(id: string): Promise<T | null> {
     return this.storage.get(id) || null;
@@ -62,7 +62,8 @@ export class InMemoryRepository<T extends { id: string }> implements Repository<
   }
 
   async save(entity: T): Promise<T> {
-    this.storage.set(entity.id, entity);
+    const id = (entity as any).id as string;
+    this.storage.set(id, entity);
     return entity;
   }
 
@@ -74,7 +75,17 @@ export class InMemoryRepository<T extends { id: string }> implements Repository<
     return (await this.findAll(filters)).length;
   }
 
-  // Expose storage for testing
+  // ─── Internal helpers (not in Repository interface) ────────────────────────
+  async insert(entity: T): Promise<void> {
+    const id = (entity as any).id ?? (entity as any).accountKey ?? (entity as any).entityKey ?? crypto.randomUUID();
+    this.storage.set(id, entity);
+  }
+
+  async update(entity: T): Promise<void> {
+    const id = (entity as any).id ?? (entity as any).accountKey ?? (entity as any).entityKey;
+    if (id && this.storage.has(id)) this.storage.set(id, entity);
+  }
+
   _clear(): void { this.storage.clear(); }
   _getAll(): T[] { return Array.from(this.storage.values()); }
 }
