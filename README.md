@@ -2,7 +2,7 @@
 
 > **Catch anomalies before they catch you.** ML-powered anomaly detection with causal root cause analysis — built for CFOs, controllers, and compliance teams who can't afford surprises.
 
-![Architecture Overview](docs/images/01-architecture.jpg)
+![Architecture Overview](docs/images/01-architecture.png)
 
 ## The Problem
 
@@ -40,7 +40,7 @@ Gradient-boosted approval routing that learns from historical approval patterns.
 
 A world-class, XBRL-ready, dimensional financial reporting system built for modern finance teams. Every report queries pre-aggregated warehouse data — not live journals — delivering CFO-ready output in seconds.
 
-![Report Types](docs/images/02-report-types.jpg)
+![Report Types](docs/images/02-report-types.png)
 
 ### Architecture
 
@@ -58,7 +58,7 @@ OUTPUTS
 
 Star schema with full dimensional context on every financial event:
 
-![Dimensional Model](docs/images/03-dimensional-model.jpg)
+![Dimensional Model](docs/images/03-dimensional-model.png)
 
 | Dimension | Key Fields |
 |-----------|-----------|
@@ -89,9 +89,7 @@ Star schema with full dimensional context on every financial event:
 
 ### CFO KPI Dashboard
 
-![KPI Dashboard — Profitability & Efficiency](docs/images/04-kpi-dashboard.jpg)
-
-![KPI Dashboard — Liquidity, Cash & Collections](docs/images/04-kpi-dashboard-2.jpg)
+![KPI Dashboard](docs/images/04-kpi-dashboard.png)
 
 Live metrics pulled from the Financial Data Warehouse:
 
@@ -108,7 +106,7 @@ Live metrics pulled from the Financial Data Warehouse:
 
 ### Pivot Engine
 
-![Pivot Engine](docs/images/05-pivot-engine.jpg)
+![Pivot Engine](docs/images/05-pivot-engine.png)
 
 Excel-style analytics on any dimensional field:
 
@@ -152,7 +150,7 @@ Adding a new report = new `ReportDefinition` config object, not new code.
 
 ### Build Status
 
-![Build Status](docs/images/06-build-status.jpg)
+![Build Status](docs/images/06-build-status.png)
 
 | Check | Result |
 |-------|--------|
